@@ -66,6 +66,7 @@ func addAdminToOrg(orgID int) error {
 	}
 
 	url := fmt.Sprintf("http://%s:%s@%s:%d/api/orgs/%d/users", opts.Username, opts.Password, opts.Host, opts.Port, orgID)
+
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return fmt.Errorf("error making HTTP request: %w", err)
@@ -340,15 +341,6 @@ func createOrg() (APIResponse, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Use http.Request's Write method to get standard HTTP request representation
-	var debugBuffer bytes.Buffer
-	err = req.Write(&debugBuffer)
-	if err != nil {
-		return APIResponse{}, fmt.Errorf("error writing request: %w", err)
-	}
-	debugRequest := debugBuffer.String()
-	fmt.Println("Request:\n", debugRequest)
-
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -388,6 +380,8 @@ func createOrg() (APIResponse, error) {
 	}
 
 	fmt.Println("Pretty Printed JSON written to resp_create_org.json")
+
+	fmt.Println("Pretty Printed JSON:")
 	fmt.Println(string(prettyJSON))
 
 	return apiResponse, nil
@@ -429,6 +423,66 @@ func contextSwitchToOrg(orgID int) error {
 	_, err = file2.Write(prettycontextSwitchJSON.Bytes())
 	if err != nil {
 		return fmt.Errorf("error writing to resp_contextswitch.json file: %w", err)
+	}
+
+	return nil
+}
+
+func run() error {
+	err := waitForGrafana()
+	if err != nil {
+		return fmt.Errorf("error waiting for Grafana: %w", err)
+	}
+
+	fmt.Println("Successfully connected to Grafana!")
+
+	// 1. Create the org.
+	apiResponse, err := createOrg()
+	if err != nil {
+		return fmt.Errorf("error creating org: %w", err)
+	}
+
+	fmt.Println("Captured OrgID:", apiResponse.OrgID)
+
+	// 2. Optional step. If the org was created previously and/or step 3 fails
+	// then first add your Admin user to the org:
+	orgID := apiResponse.OrgID
+	err = addAdminToOrg(orgID)
+	if err != nil {
+		fmt.Println("Error:", err)
+	}
+
+	// 3. Switch the org context for the Admin user to the new org:
+	err = contextSwitchToOrg(apiResponse.OrgID)
+	if err != nil {
+		return fmt.Errorf("error doing more stuff: %w", err)
+	}
+
+	// 4. Create a service account and token for the org.
+	serviceAccount, err := createServiceAccount()
+	if err != nil {
+		return fmt.Errorf("error creating service account: %w", err)
+	}
+
+	// 5. Create a token for the service account.
+	err = createTokenForServiceAccount(serviceAccount.ID)
+	if err != nil {
+		return fmt.Errorf("error creating token for service account: %w", err)
+	}
+
+	// https://grafana.com/docs/grafana/latest/developers/http_api/create-api-tokens-for-org/#how-to-add-a-dashboard
+	// re-fetch token from file in order to use it in the next step
+	filePath := "resp_token.json"
+	authToken, err := getToken(filePath)
+	if err != nil {
+		return fmt.Errorf("error getting token: %w", err)
+	}
+	fmt.Println("Token:", authToken)
+
+	// 6. Create a dashboard.
+	err = createDashboard(authToken)
+	if err != nil {
+		return fmt.Errorf("error creating dashboard: %w", err)
 	}
 
 	return nil
@@ -500,66 +554,6 @@ func createDashboard(authToken string) error {
 	}
 
 	fmt.Println("Pretty Printed JSON response written to resp_create_dashboard.json")
-
-	return nil
-}
-
-func run() error {
-	err := waitForGrafana()
-	if err != nil {
-		return fmt.Errorf("error waiting for Grafana: %w", err)
-	}
-
-	slog.Debug("Successfully connected to Grafana!")
-
-	// 1. Create the org.
-	apiResponse, err := createOrg()
-	if err != nil {
-		return fmt.Errorf("error creating org: %w", err)
-	}
-
-	fmt.Println("Captured OrgID:", apiResponse.OrgID)
-
-	// 2. Optional step. If the org was created previously and/or step 3 fails
-	// then first add your Admin user to the org:
-	orgID := apiResponse.OrgID
-	err = addAdminToOrg(orgID)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-
-	// 3. Switch the org context for the Admin user to the new org:
-	err = contextSwitchToOrg(apiResponse.OrgID)
-	if err != nil {
-		return fmt.Errorf("error doing more stuff: %w", err)
-	}
-
-	// 4. Create a service account and token for the org.
-	serviceAccount, err := createServiceAccount()
-	if err != nil {
-		return fmt.Errorf("error creating service account: %w", err)
-	}
-
-	// 5. Create a token for the service account.
-	err = createTokenForServiceAccount(serviceAccount.ID)
-	if err != nil {
-		return fmt.Errorf("error creating token for service account: %w", err)
-	}
-
-	// https://grafana.com/docs/grafana/latest/developers/http_api/create-api-tokens-for-org/#how-to-add-a-dashboard
-	// re-fetch token from file in order to use it in the next step
-	filePath := "resp_token.json"
-	authToken, err := getToken(filePath)
-	if err != nil {
-		return fmt.Errorf("error getting token: %w", err)
-	}
-	fmt.Println("Token:", authToken)
-
-	// 6. Create a dashboard.
-	err = createDashboard(authToken)
-	if err != nil {
-		return fmt.Errorf("error creating dashboard: %w", err)
-	}
 
 	return nil
 }

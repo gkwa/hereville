@@ -436,27 +436,27 @@ func run() error {
 
 	fmt.Println("Successfully connected to Grafana!")
 
-	// 1. Create the org.
-	apiResponse, err := createOrg()
-	if err != nil {
-		return fmt.Errorf("error creating org: %w", err)
-	}
+	// // 1. Create the org.
+	// apiResponse, err := createOrg()
+	// if err != nil {
+	// 	return fmt.Errorf("error creating org: %w", err)
+	// }
 
-	fmt.Println("Captured OrgID:", apiResponse.OrgID)
+	// fmt.Println("Captured OrgID:", apiResponse.OrgID)
 
-	// 2. Optional step. If the org was created previously and/or step 3 fails
-	// then first add your Admin user to the org:
-	orgID := apiResponse.OrgID
-	err = addAdminToOrg(orgID)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
+	// // 2. Optional step. If the org was created previously and/or step 3 fails
+	// // then first add your Admin user to the org:
+	// orgID := apiResponse.OrgID
+	// err = addAdminToOrg(orgID)
+	// if err != nil {
+	// 	fmt.Println("Error:", err)
+	// }
 
-	// 3. Switch the org context for the Admin user to the new org:
-	err = contextSwitchToOrg(apiResponse.OrgID)
-	if err != nil {
-		return fmt.Errorf("error doing more stuff: %w", err)
-	}
+	// // 3. Switch the org context for the Admin user to the new org:
+	// err = contextSwitchToOrg(apiResponse.OrgID)
+	// if err != nil {
+	// 	return fmt.Errorf("error doing more stuff: %w", err)
+	// }
 
 	// 4. Create a service account and token for the org.
 	serviceAccount, err := createServiceAccount()
